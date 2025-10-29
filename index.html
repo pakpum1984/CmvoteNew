@@ -3,7 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ระบบเลือกตั้งออนไลน์</title>
+    <title>1ระบบเลือกตั้งออนไลน์</title>
+    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-database-compat.js"></script>
     <style>
         * {
             margin: 0;
@@ -112,21 +114,22 @@
             display: none;
         }
 
+        /* การ์ดผู้สมัครแบบแนวตั้ง */
         .candidate-card {
             background: #f8f9fa;
             border: 2px solid #e9ecef;
-            border-radius: 10px;
-            padding: 20px;
-            margin-bottom: 15px;
+            border-radius: 15px;
+            padding: 0;
+            margin-bottom: 20px;
             cursor: pointer;
             transition: all 0.3s;
-            display: flex;
-            align-items: center;
+            overflow: hidden;
         }
 
         .candidate-card:hover {
             border-color: #3498db;
-            transform: translateY(-2px);
+            transform: translateY(-3px);
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
         }
 
         .candidate-card.selected {
@@ -134,34 +137,49 @@
             background: #d5f4e6;
         }
 
+        .candidate-photo-container {
+            width: 100%;
+            height: 180px;
+            overflow: hidden;
+            position: relative;
+        }
+
         .candidate-photo {
-            width: 60px;
-            height: 60px;
-            border-radius: 50%;
+            width: 100%;
+            height: 100%;
             object-fit: cover;
-            margin-right: 15px;
-            border: 2px solid #e1e8ed;
         }
 
         .candidate-info {
-            flex: 1;
+            padding: 20px;
         }
 
         .candidate-name {
             font-size: 18px;
             font-weight: 600;
             color: #2c3e50;
+            margin-bottom: 5px;
+        }
+
+        .candidate-number {
+            display: inline-block;
+            background: #3498db;
+            color: white;
+            padding: 3px 10px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 8px;
         }
 
         .candidate-position {
             color: #7f8c8d;
-            margin-top: 5px;
+            margin-bottom: 5px;
         }
 
         .candidate-department {
             color: #3498db;
             font-size: 14px;
-            margin-top: 3px;
         }
 
         .status-message {
@@ -407,6 +425,17 @@
             color: #2c3e50;
         }
 
+        .ranking-number {
+            display: inline-block;
+            background: #3498db;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 15px;
+            font-size: 12px;
+            font-weight: 600;
+            margin-right: 8px;
+        }
+
         .ranking-department {
             color: #7f8c8d;
             font-size: 14px;
@@ -451,6 +480,51 @@
             .content {
                 min-height: 500px;
             }
+            
+            .candidates-grid {
+                display: grid;
+                grid-template-columns: repeat(2, 1fr);
+                gap: 20px;
+            }
+        }
+
+        /* Admin Section */
+        .admin-section {
+            padding: 20px;
+        }
+
+        .admin-title {
+            text-align: center;
+            margin-bottom: 20px;
+            color: #2c3e50;
+        }
+
+        .admin-actions {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .admin-actions button {
+            flex: 1;
+        }
+
+        .candidates-data {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 15px;
+            margin-top: 20px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .candidate-data-item {
+            padding: 10px;
+            border-bottom: 1px solid #e1e8ed;
+        }
+
+        .candidate-data-item:last-child {
+            border-bottom: none;
         }
     </style>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -470,6 +544,9 @@
             <button id="nav-report" onclick="showSection('report-section')">
                 <i class="fas fa-chart-bar"></i> รายงานผล
             </button>
+            <button id="nav-admin" onclick="showSection('admin-section')">
+                <i class="fas fa-cog"></i> ผู้ดูแลระบบ
+            </button>
         </div>
 
         <div class="content">
@@ -483,27 +560,20 @@
                 
                 <div class="form-group">
                     <label for="employeeId">รหัสพนักงาน</label>
-                    <input type="text" id="employeeId" placeholder="กรอกรหัสพนักงาน">
+                    <input type="text" id="employeeId" placeholder="กรอกรหัสพนักงาน" oninput="loadEmployeeInfo()">
                 </div>
                 
                 <div class="form-group">
                     <label for="fullName">ชื่อ-สกุล</label>
-                    <input type="text" id="fullName" placeholder="กรอกชื่อ-สกุล">
+                    <input type="text" id="fullName" placeholder="ระบบจะแสดงชื่อ-สกุลอัตโนมัติ" readonly>
                 </div>
                 
                 <div class="form-group">
                     <label for="department">แผนก</label>
-                    <select id="department">
-                        <option value="">เลือกแผนก</option>
-                        <option value="IT">แผนกเทคโนโลยีสารสนเทศ</option>
-                        <option value="HR">แผนกทรัพยากรบุคคล</option>
-                        <option value="Finance">แผนกการเงิน</option>
-                        <option value="Marketing">แผนกการตลาด</option>
-                        <option value="Operations">แผนกปฏิบัติการ</option>
-                    </select>
+                    <input type="text" id="department" placeholder="ระบบจะแสดงแผนกอัตโนมัติ" readonly>
                 </div>
                 
-                <button class="btn" onclick="verifyEmployee()">ตรวจสอบสิทธิ์</button>
+                <button class="btn" onclick="verifyEmployee()" id="verify-btn">ตรวจสอบสิทธิ์</button>
             </div>
 
             <!-- ขั้นตอนที่ 2: เลือกผู้สมัคร -->
@@ -516,8 +586,8 @@
                 
                 <h2 style="text-align: center; margin-bottom: 20px;">เลือกตั้งประธานกรรมการพนักงาน</h2>
                 
-                <div id="candidates-list">
-                    <!-- ผู้สมัครจะถูกโหลดจากฐานข้อมูลจำลอง -->
+                <div id="candidates-list" class="candidates-grid">
+                    <!-- ผู้สมัครจะถูกโหลดจาก Firebase -->
                 </div>
                 
                 <div id="vote-message" class="status-message hidden"></div>
@@ -563,6 +633,29 @@
                 </div>
             </div>
 
+            <!-- หน้าผู้ดูแลระบบ -->
+            <div id="admin-section" class="hidden">
+                <h2 class="admin-title">หน้าผู้ดูแลระบบ</h2>
+                
+                <div class="admin-actions">
+                    <button class="btn btn-success" onclick="uploadCandidates()">
+                        <i class="fas fa-upload"></i> อัพโหลดข้อมูลผู้สมัคร
+                    </button>
+                    <button class="btn btn-danger" onclick="resetVotes()">
+                        <i class="fas fa-trash"></i> รีเซ็ตคะแนน
+                    </button>
+                </div>
+                
+                <div class="candidates-data">
+                    <h3>ข้อมูลผู้สมัครที่จะอัพโหลด:</h3>
+                    <div id="candidates-preview">
+                        <!-- ข้อมูลผู้สมัครจะแสดงที่นี่ -->
+                    </div>
+                </div>
+                
+                <div id="admin-message" class="status-message hidden"></div>
+            </div>
+
             <!-- ข้อความสถานะ -->
             <div id="status-message" class="status-message hidden"></div>
         </div>
@@ -577,76 +670,49 @@
                 <i class="fas fa-chart-bar"></i>
                 <span>รายงานผล</span>
             </button>
+            <button id="mobile-nav-admin" onclick="showSection('admin-section')">
+                <i class="fas fa-cog"></i>
+                <span>ผู้ดูแล</span>
+            </button>
         </div>
     </div>
 
     <script>
-        // ข้อมูลผู้มีสิทธิ์เลือกตั้ง (ข้อมูลจำลอง)
-        const eligibleEmployees = {
-            "EMP001": { name: "สมชาย ใจดี", department: "IT" },
-            "EMP002": { name: "สุนิสา เก่งดี", department: "HR" },
-            "EMP003": { name: "ประยุทธ์ ทำงาน", department: "Finance" },
-            "EMP004": { name: "วรรณา สวยงาม", department: "Marketing" },
-            "EMP005": { name: "ธนวัฒน์ เร็วแรง", department: "Operations" },
-            "EMP006": { name: "กนกวรรณ สวยงาม", department: "IT" },
-            "EMP007": { name: "วิทยา กล้าหาญ", department: "HR" },
-            "EMP008": { name: "อรุณี สดใส", department: "Finance" }
+        // Firebase configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyB5-Valyg0wMJAGPTdEc_bvAlI3FMvV8Is",
+            authDomain: "votecm268.firebaseapp.com",
+            databaseURL: "https://votecm268-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "votecm268",
+            storageBucket: "votecm268.firebasestorage.app",
+            messagingSenderId: "442006814059",
+            appId: "1:442006814059:web:dde44efb64367f19f4202e",
+            measurementId: "G-1N2T1LR98L"
         };
 
-        // ข้อมูลผู้สมัคร (ข้อมูลจำลอง)
-        const mockCandidates = {
-            "C001": { 
-                name: "นางสาวกนกวรรณ ใจดี", 
-                position: "ประธานกรรมการ",
-                department: "แผนกเทคโนโลยีสารสนเทศ",
-                photo: "https://via.placeholder.com/150/3498db/FFFFFF?text=KW",
-                votes: 12
-            },
-            "C002": { 
-                name: "นายสมชาย ทำงาน", 
-                position: "ประธานกรรมการ",
-                department: "แผนกทรัพยากรบุคคล",
-                photo: "https://via.placeholder.com/150/e74c3c/FFFFFF?text=SM",
-                votes: 8
-            },
-            "C003": { 
-                name: "นางสาวสุภาพร เก่งดี", 
-                position: "ประธานกรรมการ",
-                department: "แผนกการเงิน",
-                photo: "https://via.placeholder.com/150/2ecc71/FFFFFF?text=SP",
-                votes: 15
-            },
-            "C004": { 
-                name: "นายวิทยา กล้าหาญ", 
-                position: "ประธานกรรมการ",
-                department: "แผนกการตลาด",
-                photo: "https://via.placeholder.com/150/9b59b6/FFFFFF?text=WT",
-                votes: 5
-            },
-            "C005": { 
-                name: "นางสาวอรุณี สดใส", 
-                position: "ประธานกรรมการ",
-                department: "แผนกปฏิบัติการ",
-                photo: "https://via.placeholder.com/150/f39c12/FFFFFF?text=AR",
-                votes: 10
-            }
-        };
-
-        // ข้อมูลการลงคะแนน (ข้อมูลจำลอง)
-        let mockVotes = {
-            "EMP001": { candidateId: "C001", timestamp: "2023-10-01T09:00:00Z" },
-            "EMP002": { candidateId: "C003", timestamp: "2023-10-01T09:15:00Z" },
-            "EMP003": { candidateId: "C005", timestamp: "2023-10-01T09:30:00Z" },
-            "EMP004": { candidateId: "C003", timestamp: "2023-10-01T10:00:00Z" },
-            "EMP005": { candidateId: "C002", timestamp: "2023-10-01T10:30:00Z" },
-            "EMP006": { candidateId: "C001", timestamp: "2023-10-01T11:00:00Z" },
-            "EMP007": { candidateId: "C003", timestamp: "2023-10-01T11:30:00Z" },
-            "EMP008": { candidateId: "C005", timestamp: "2023-10-01T12:00:00Z" }
-        };
+        // Initialize Firebase
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
 
         // ตัวแปรเก็บสถานะ
         let currentEmployee = null;
         let selectedCandidate = null;
+        let employeeData = {};
+
+        // ข้อมูลผู้สมัครจากชีตของคุณ
+        const candidateData = [
+            { id: "1", number: "เบอร์ 1", name: "นายสมชาย ใจดี", party: "พรรคพัฒนา", photo: "https://randomuser.me/api/portraits/men/1.jpg", votes: 0 },
+            { id: "2", number: "เบอร์ 2", name: "นางสาวสมหญิง สุขใจ", party: "พรรครักสามัคคี", photo: "https://randomuser.me/api/portraits/women/1.jpg", votes: 0 },
+            { id: "3", number: "เบอร์ 3", name: "นายสมหมาย ตั้งใจ", party: "พรรคเพื่อองค์กร", photo: "https://randomuser.me/api/portraits/men/2.jpg", votes: 0 },
+            { id: "4", number: "เบอร์ 4", name: "นางสาวสมศรี มีสุข", party: "พรรคก้าวหน้า", photo: "https://randomuser.me/api/portraits/women/2.jpg", votes: 0 },
+            { id: "5", number: "เบอร์ 5", name: "นายสมาน มานะ", party: "พรรคเพื่อพนักงาน", photo: "https://randomuser.me/api/portraits/men/3.jpg", votes: 0 },
+            { id: "6", number: "เบอร์ 6", name: "นางสาวสมร นุ่มนวล", party: "พรรคสร้างสรรค์", photo: "https://randomuser.me/api/portraits/women/3.jpg", votes: 0 },
+            { id: "7", number: "เบอร์ 7", name: "นายสมคิด จริงใจ", party: "พรรคความหวังใหม่", photo: "https://randomuser.me/api/portraits/men/4.jpg", votes: 0 },
+            { id: "8", number: "เบอร์ 8", name: "นางสาวสมฤดี ใสสะอาด", party: "พรรคเพื่อทุกคน", photo: "https://randomuser.me/api/portraits/women/4.jpg", votes: 0 },
+            { id: "9", number: "เบอร์ 9", name: "นายสมศักดิ์ เก่งรอบด้าน", party: "พรรคประสิทธิภาพ", photo: "https://randomuser.me/api/portraits/men/5.jpg", votes: 0 },
+            { id: "10", number: "เบอร์ 10", name: "นางสาวสมบูรณ์ สมใจ", party: "พรรคความสุข", photo: "https://randomuser.me/api/portraits/women/5.jpg", votes: 0 },
+            { id: "novote", number: "ไม่ประสงค์ลงคะแนน", name: "ไม่ประสงค์ลงคะแนน", party: "ไม่ประสงค์ลงคะแนน", photo: "https://cmfrozen-387fd.web.app/vote/images/voteno.jpeg", votes: 0 }
+        ];
 
         // ฟังก์ชันแสดงส่วนต่างๆ ของหน้า
         function showSection(sectionId) {
@@ -655,6 +721,7 @@
             document.getElementById('vote-section').classList.add('hidden');
             document.getElementById('confirmation-section').classList.add('hidden');
             document.getElementById('report-section').classList.add('hidden');
+            document.getElementById('admin-section').classList.add('hidden');
             
             // แสดงส่วนที่เลือก
             document.getElementById(sectionId).classList.remove('hidden');
@@ -665,6 +732,11 @@
             // ถ้าเป็นหน้ารายงานผล ให้โหลดข้อมูลใหม่
             if (sectionId === 'report-section') {
                 loadReport();
+            }
+            
+            // ถ้าเป็นหน้าผู้ดูแลระบบ ให้แสดงข้อมูลผู้สมัคร
+            if (sectionId === 'admin-section') {
+                showCandidatesPreview();
             }
         }
 
@@ -677,75 +749,226 @@
             // อัพเดทเมนูคอมพิวเตอร์
             document.getElementById('nav-vote').classList.toggle('active', isVoteSection);
             document.getElementById('nav-report').classList.toggle('active', activeSection === 'report-section');
+            document.getElementById('nav-admin').classList.toggle('active', activeSection === 'admin-section');
             
             // อัพเดทเมนูมือถือ
             document.getElementById('mobile-nav-vote').classList.toggle('active', isVoteSection);
             document.getElementById('mobile-nav-report').classList.toggle('active', activeSection === 'report-section');
+            document.getElementById('mobile-nav-admin').classList.toggle('active', activeSection === 'admin-section');
+        }
+
+        // แสดงข้อมูลผู้สมัครในหน้าผู้ดูแลระบบ
+        function showCandidatesPreview() {
+            const previewElement = document.getElementById('candidates-preview');
+            previewElement.innerHTML = '';
+            
+            candidateData.forEach(candidate => {
+                const candidateItem = document.createElement('div');
+                candidateItem.className = 'candidate-data-item';
+                candidateItem.innerHTML = `
+                    <strong>${candidate.number}</strong>: ${candidate.name} (${candidate.party})
+                `;
+                previewElement.appendChild(candidateItem);
+            });
+        }
+
+        // อัพโหลดข้อมูลผู้สมัครไปยัง Firebase
+        function uploadCandidates() {
+            const candidatesRef = database.ref('candidates');
+            
+            // แปลงข้อมูลผู้สมัครเป็น object
+            const candidatesObject = {};
+            candidateData.forEach(candidate => {
+                candidatesObject[candidate.id] = {
+                    name: candidate.name,
+                    number: candidate.number,
+                    party: candidate.party,
+                    photo: candidate.photo,
+                    votes: candidate.votes
+                };
+            });
+            
+            candidatesRef.set(candidatesObject)
+                .then(() => {
+                    showAdminStatus('อัพโหลดข้อมูลผู้สมัครสำเร็จ!', 'success');
+                })
+                .catch(error => {
+                    console.error('Error uploading candidates:', error);
+                    showAdminStatus('เกิดข้อผิดพลาดในการอัพโหลดข้อมูล', 'error');
+                });
+        }
+
+        // รีเซ็ตคะแนนทั้งหมด
+        function resetVotes() {
+            if (!confirm('คุณแน่ใจหรือไม่ที่จะรีเซ็ตคะแนนทั้งหมด? การกระทำนี้ไม่สามารถย้อนกลับได้!')) {
+                return;
+            }
+            
+            const candidatesRef = database.ref('candidates');
+            const votesRef = database.ref('votes');
+            
+            // รีเซ็ตคะแนนผู้สมัครทั้งหมดเป็น 0
+            candidatesRef.once('value')
+                .then(snapshot => {
+                    const candidates = snapshot.val();
+                    const updates = {};
+                    
+                    Object.keys(candidates).forEach(key => {
+                        updates[`${key}/votes`] = 0;
+                    });
+                    
+                    return candidatesRef.update(updates);
+                })
+                .then(() => {
+                    // ลบข้อมูลการลงคะแนนทั้งหมด
+                    return votesRef.remove();
+                })
+                .then(() => {
+                    showAdminStatus('รีเซ็ตคะแนนสำเร็จ!', 'success');
+                    // โหลดรายงานผลใหม่
+                    loadReport();
+                })
+                .catch(error => {
+                    console.error('Error resetting votes:', error);
+                    showAdminStatus('เกิดข้อผิดพลาดในการรีเซ็ตคะแนน', 'error');
+                });
+        }
+
+        // โหลดข้อมูลพนักงานเมื่อกรอกรหัสพนักงาน
+        function loadEmployeeInfo() {
+            const employeeId = document.getElementById('employeeId').value.trim();
+            
+            if (employeeId.length >= 3) {
+                const employeesRef = database.ref('employees/' + employeeId);
+                
+                employeesRef.once('value')
+                    .then(snapshot => {
+                        if (snapshot.exists()) {
+                            const employee = snapshot.val();
+                            employeeData[employeeId] = employee;
+                            
+                            // แสดงข้อมูลพนักงาน
+                            document.getElementById('fullName').value = employee.name || '';
+                            document.getElementById('department').value = employee.department || '';
+                            
+                            // ตรวจสอบสถานะการทำงาน
+                            if (employee.status !== 'ปฏิบัติงาน') {
+                                showStatus('พนักงานไม่มีสถานะปฏิบัติงาน', 'error');
+                                document.getElementById('verify-btn').disabled = true;
+                            } else {
+                                document.getElementById('verify-btn').disabled = false;
+                                document.getElementById('status-message').classList.add('hidden');
+                            }
+                        } else {
+                            // ล้างข้อมูลถ้าไม่พบพนักงาน
+                            document.getElementById('fullName').value = '';
+                            document.getElementById('department').value = '';
+                            document.getElementById('verify-btn').disabled = true;
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error loading employee data:', error);
+                        showStatus('เกิดข้อผิดพลาดในการโหลดข้อมูลพนักงาน', 'error');
+                    });
+            } else {
+                // ล้างข้อมูลถ้ารหัสพนักงานสั้นเกินไป
+                document.getElementById('fullName').value = '';
+                document.getElementById('department').value = '';
+                document.getElementById('verify-btn').disabled = true;
+            }
         }
 
         // ฟังก์ชันตรวจสอบสิทธิ์พนักงาน
         function verifyEmployee() {
             const employeeId = document.getElementById('employeeId').value.trim();
-            const fullName = document.getElementById('fullName').value.trim();
-            const department = document.getElementById('department').value;
 
-            if (!employeeId || !fullName || !department) {
-                showStatus('กรุณากรอกข้อมูลให้ครบถ้วน', 'error');
+            if (!employeeId) {
+                showStatus('กรุณากรอกรหัสพนักงาน', 'error');
                 return;
             }
 
-            // ตรวจสอบว่าพนักงานมีอยู่ในระบบและข้อมูลตรงกัน
-            if (eligibleEmployees[employeeId] && 
-                eligibleEmployees[employeeId].name === fullName && 
-                eligibleEmployees[employeeId].department === department) {
+            // ตรวจสอบว่าพนักงานมีอยู่ในระบบ
+            if (employeeData[employeeId]) {
+                const employee = employeeData[employeeId];
+                
+                // ตรวจสอบสถานะการทำงาน
+                if (employee.status !== 'ปฏิบัติงาน') {
+                    showStatus('พนักงานไม่มีสถานะปฏิบัติงาน', 'error');
+                    return;
+                }
                 
                 // ตรวจสอบว่าลงคะแนนไปแล้วหรือยัง
-                checkVoteStatus(employeeId, fullName, department);
+                checkVoteStatus(employeeId, employee.name, employee.department);
             } else {
-                showStatus('ข้อมูลไม่ถูกต้องหรือไม่มีสิทธิ์เลือกตั้ง', 'error');
+                showStatus('ไม่พบข้อมูลพนักงานในระบบ', 'error');
             }
         }
 
         // ตรวจสอบสถานะการลงคะแนน
         function checkVoteStatus(employeeId, fullName, department) {
-            // ใช้ข้อมูลจำลองแทนการเชื่อมต่อ Firebase
-            if (mockVotes[employeeId]) {
-                showStatus('คุณได้ลงคะแนนไปแล้ว', 'error');
-            } else {
-                // บันทึกข้อมูลพนักงานและแสดงหน้าลงคะแนน
-                currentEmployee = {
-                    id: employeeId,
-                    name: fullName,
-                    department: department
-                };
-                
-                showVoteSection();
-                loadCandidates();
-            }
+            const votesRef = database.ref('votes/' + employeeId);
+            
+            votesRef.once('value')
+                .then(snapshot => {
+                    if (snapshot.exists()) {
+                        showStatus('คุณได้ลงคะแนนไปแล้ว', 'error');
+                    } else {
+                        // บันทึกข้อมูลพนักงานและแสดงหน้าลงคะแนน
+                        currentEmployee = {
+                            id: employeeId,
+                            name: fullName,
+                            department: department
+                        };
+                        
+                        showVoteSection();
+                        loadCandidates();
+                    }
+                })
+                .catch(error => {
+                    console.error('Error checking vote status:', error);
+                    showStatus('เกิดข้อผิดพลาดในการตรวจสอบสิทธิ์', 'error');
+                });
         }
 
         // โหลดข้อมูลผู้สมัคร
         function loadCandidates() {
-            const candidatesList = document.getElementById('candidates-list');
-            candidatesList.innerHTML = '';
+            const candidatesRef = database.ref('candidates');
             
-            Object.keys(mockCandidates).forEach(key => {
-                const candidate = mockCandidates[key];
-                const candidateCard = document.createElement('div');
-                candidateCard.className = 'candidate-card';
-                candidateCard.onclick = () => selectCandidate(key, candidateCard);
-                
-                candidateCard.innerHTML = `
-                    <img src="${candidate.photo}" alt="${candidate.name}" class="candidate-photo">
-                    <div class="candidate-info">
-                        <div class="candidate-name">${candidate.name}</div>
-                        <div class="candidate-position">${candidate.position}</div>
-                        <div class="candidate-department">${candidate.department}</div>
-                    </div>
-                `;
-                
-                candidatesList.appendChild(candidateCard);
-            });
+            candidatesRef.once('value')
+                .then(snapshot => {
+                    const candidates = snapshot.val();
+                    const candidatesList = document.getElementById('candidates-list');
+                    candidatesList.innerHTML = '';
+                    
+                    if (candidates) {
+                        Object.keys(candidates).forEach(key => {
+                            const candidate = candidates[key];
+                            const candidateCard = document.createElement('div');
+                            candidateCard.className = 'candidate-card';
+                            candidateCard.onclick = () => selectCandidate(key, candidateCard);
+                            
+                            candidateCard.innerHTML = `
+                                <div class="candidate-photo-container">
+                                    <img src="${candidate.photo || 'https://via.placeholder.com/300x180/3498db/FFFFFF?text=No+Image'}" 
+                                         alt="${candidate.name}" class="candidate-photo">
+                                </div>
+                                <div class="candidate-info">
+                                    <div class="candidate-number">${candidate.number}</div>
+                                    <div class="candidate-name">${candidate.name}</div>
+                                    <div class="candidate-position">${candidate.party || 'พรรค'}</div>
+                                </div>
+                            `;
+                            
+                            candidatesList.appendChild(candidateCard);
+                        });
+                    } else {
+                        showStatus('ยังไม่มีข้อมูลผู้สมัครในระบบ', 'error', 'vote-message');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error loading candidates:', error);
+                    showStatus('เกิดข้อผิดพลาดในการโหลดข้อมูลผู้สมัคร', 'error', 'vote-message');
+                });
         }
 
         // เลือกผู้สมัคร
@@ -761,9 +984,22 @@
             
             // แสดงข้อความยืนยัน
             const voteMessage = document.getElementById('vote-message');
-            voteMessage.textContent = `คุณเลือก: ${mockCandidates[candidateId].name}`;
-            voteMessage.className = 'status-message status-info';
-            voteMessage.classList.remove('hidden');
+            
+            // โหลดชื่อผู้สมัครจาก Firebase
+            const candidatesRef = database.ref('candidates/' + candidateId + '/name');
+            candidatesRef.once('value')
+                .then(snapshot => {
+                    const candidateName = snapshot.val();
+                    voteMessage.textContent = `คุณเลือก: ${candidateName}`;
+                    voteMessage.className = 'status-message status-info';
+                    voteMessage.classList.remove('hidden');
+                })
+                .catch(error => {
+                    console.error('Error getting candidate name:', error);
+                    voteMessage.textContent = `คุณเลือกผู้สมัคร ${candidateId}`;
+                    voteMessage.className = 'status-message status-info';
+                    voteMessage.classList.remove('hidden');
+                });
         }
 
         // ส่งการลงคะแนน
@@ -781,9 +1017,8 @@
             // ป้องกันการกดปุ่มซ้ำ
             document.getElementById('submit-vote-btn').disabled = true;
             
-            // ใช้ข้อมูลจำลองแทนการเชื่อมต่อ Firebase
             // บันทึกการลงคะแนน
-            mockVotes[currentEmployee.id] = {
+            const voteData = {
                 employeeId: currentEmployee.id,
                 employeeName: currentEmployee.name,
                 department: currentEmployee.department,
@@ -792,11 +1027,37 @@
                 ipAddress: "บันทึกในระบบจริง"
             };
             
-            // อัพเดทจำนวนคะแนน
-            mockCandidates[selectedCandidate].votes = (mockCandidates[selectedCandidate].votes || 0) + 1;
+            // ใช้ Transaction เพื่อป้องกันการลงคะแนนซ้ำและเพิ่มคะแนนอย่างปลอดภัย
+            const voteRef = database.ref('votes/' + currentEmployee.id);
+            const candidateRef = database.ref('candidates/' + selectedCandidate + '/votes');
             
-            // แสดงหน้ายืนยัน
-            showConfirmation();
+            // ตรวจสอบอีกครั้งว่ายังไม่ได้ลงคะแนน
+            voteRef.once('value')
+                .then(snapshot => {
+                    if (snapshot.exists()) {
+                        showStatus('คุณได้ลงคะแนนไปแล้ว', 'error', 'vote-message');
+                        document.getElementById('submit-vote-btn').disabled = false;
+                        return;
+                    }
+                    
+                    // บันทึกการลงคะแนน
+                    return voteRef.set(voteData)
+                        .then(() => {
+                            // อัพเดทจำนวนคะแนน
+                            return candidateRef.transaction(currentVotes => {
+                                return (currentVotes || 0) + 1;
+                            });
+                        })
+                        .then(() => {
+                            // แสดงหน้ายืนยัน
+                            showConfirmation();
+                        });
+                })
+                .catch(error => {
+                    console.error('Error submitting vote:', error);
+                    showStatus('เกิดข้อผิดพลาดในการลงคะแนน', 'error', 'vote-message');
+                    document.getElementById('submit-vote-btn').disabled = false;
+                });
         }
 
         // แสดงหน้าลงคะแนน
@@ -805,6 +1066,7 @@
             document.getElementById('vote-section').classList.remove('hidden');
             document.getElementById('confirmation-section').classList.add('hidden');
             document.getElementById('report-section').classList.add('hidden');
+            document.getElementById('admin-section').classList.add('hidden');
             document.getElementById('status-message').classList.add('hidden');
             
             updateNavButtons('vote-section');
@@ -812,73 +1074,112 @@
 
         // แสดงหน้ายืนยัน
         function showConfirmation() {
-            const candidateName = mockCandidates[selectedCandidate].name;
-            document.getElementById('selected-candidate-name').textContent = candidateName;
-            document.getElementById('vote-time').textContent = new Date().toLocaleString('th-TH');
+            // หาชื่อผู้สมัครที่เลือก
+            const candidatesRef = database.ref('candidates/' + selectedCandidate + '/name');
             
-            document.getElementById('vote-section').classList.add('hidden');
-            document.getElementById('confirmation-section').classList.remove('hidden');
-            
-            updateNavButtons('confirmation-section');
+            candidatesRef.once('value')
+                .then(snapshot => {
+                    const candidateName = snapshot.val();
+                    document.getElementById('selected-candidate-name').textContent = candidateName;
+                    document.getElementById('vote-time').textContent = new Date().toLocaleString('th-TH');
+                    
+                    document.getElementById('vote-section').classList.add('hidden');
+                    document.getElementById('confirmation-section').classList.remove('hidden');
+                    
+                    updateNavButtons('confirmation-section');
+                })
+                .catch(error => {
+                    console.error('Error getting candidate name:', error);
+                    document.getElementById('selected-candidate-name').textContent = 'ไม่ทราบชื่อ';
+                    document.getElementById('vote-time').textContent = new Date().toLocaleString('th-TH');
+                    
+                    document.getElementById('vote-section').classList.add('hidden');
+                    document.getElementById('confirmation-section').classList.remove('hidden');
+                    
+                    updateNavButtons('confirmation-section');
+                });
         }
 
         // โหลดหน้ารายงานผล
         function loadReport() {
-            // คำนวณจำนวนผู้ลงคะแนนทั้งหมด
-            const totalVotes = Object.keys(mockVotes).length;
-            document.getElementById('total-votes-count').textContent = totalVotes;
+            // โหลดข้อมูลผู้สมัครและคะแนน
+            const candidatesRef = database.ref('candidates');
+            const votesRef = database.ref('votes');
             
-            // สร้างรายการเรียงลำดับคะแนน
-            const rankingList = document.getElementById('ranking-list');
-            rankingList.innerHTML = '';
-            
-            // แปลงข้อมูลผู้สมัครเป็นอาร์เรย์และเรียงลำดับตามคะแนน
-            const candidatesArray = Object.keys(mockCandidates).map(key => {
-                return {
-                    id: key,
-                    ...mockCandidates[key]
-                };
-            });
-            
-            // เรียงลำดับจากคะแนนมากไปน้อย
-            candidatesArray.sort((a, b) => b.votes - a.votes);
-            
-            // หาคะแนนสูงสุด
-            const maxVotes = candidatesArray.length > 0 ? candidatesArray[0].votes : 0;
-            
-            // สร้างรายการเรียงลำดับ
-            candidatesArray.forEach((candidate, index) => {
-                const rankingItem = document.createElement('div');
-                rankingItem.className = 'ranking-item';
+            Promise.all([
+                candidatesRef.once('value'),
+                votesRef.once('value')
+            ])
+            .then(([candidatesSnapshot, votesSnapshot]) => {
+                const candidates = candidatesSnapshot.val();
+                const votes = votesSnapshot.val();
                 
-                // ถ้าเป็นอันดับ 1 ให้เพิ่มคลาส winner
-                if (index === 0 && candidate.votes > 0) {
-                    rankingItem.classList.add('winner');
+                // คำนวณจำนวนผู้ลงคะแนนทั้งหมด
+                const totalVotes = votes ? Object.keys(votes).length : 0;
+                document.getElementById('total-votes-count').textContent = totalVotes;
+                
+                // สร้างรายการเรียงลำดับคะแนน
+                const rankingList = document.getElementById('ranking-list');
+                rankingList.innerHTML = '';
+                
+                if (candidates) {
+                    // แปลงข้อมูลผู้สมัครเป็นอาร์เรย์และเรียงลำดับตามคะแนน
+                    const candidatesArray = Object.keys(candidates).map(key => {
+                        return {
+                            id: key,
+                            ...candidates[key]
+                        };
+                    });
+                    
+                    // เรียงลำดับจากคะแนนมากไปน้อย
+                    candidatesArray.sort((a, b) => (b.votes || 0) - (a.votes || 0));
+                    
+                    // หาคะแนนสูงสุด
+                    const maxVotes = candidatesArray.length > 0 ? (candidatesArray[0].votes || 0) : 0;
+                    
+                    // สร้างรายการเรียงลำดับ
+                    candidatesArray.forEach((candidate, index) => {
+                        const rankingItem = document.createElement('div');
+                        rankingItem.className = 'ranking-item';
+                        
+                        // ถ้าเป็นอันดับ 1 และมีคะแนนมากกว่า 0 ให้เพิ่มคลาส winner
+                        if (index === 0 && candidate.votes > 0) {
+                            rankingItem.classList.add('winner');
+                        }
+                        
+                        // กำหนดสีเหรียญ
+                        let badgeClass = '';
+                        if (index === 0) badgeClass = 'gold';
+                        else if (index === 1) badgeClass = 'silver';
+                        else if (index === 2) badgeClass = 'bronze';
+                        
+                        // คำนวณเปอร์เซ็นต์
+                        const percentage = maxVotes > 0 ? ((candidate.votes || 0) / maxVotes) * 100 : 0;
+                        
+                        rankingItem.innerHTML = `
+                            <div class="rank-badge ${badgeClass}">${index + 1}</div>
+                            <div class="ranking-info">
+                                <div class="ranking-name">
+                                    <span class="ranking-number">${candidate.number}</span>
+                                    ${candidate.name}
+                                </div>
+                                <div class="ranking-department">${candidate.party || ''}</div>
+                                <div class="progress-bar">
+                                    <div class="progress-fill" style="width: ${percentage}%"></div>
+                                </div>
+                            </div>
+                            <div class="ranking-votes">${candidate.votes || 0} คะแนน</div>
+                        `;
+                        
+                        rankingList.appendChild(rankingItem);
+                    });
+                } else {
+                    rankingList.innerHTML = '<div class="status-message status-info">ยังไม่มีข้อมูลผู้สมัคร</div>';
                 }
-                
-                // กำหนดสีเหรียญ
-                let badgeClass = '';
-                if (index === 0) badgeClass = 'gold';
-                else if (index === 1) badgeClass = 'silver';
-                else if (index === 2) badgeClass = 'bronze';
-                
-                // คำนวณเปอร์เซ็นต์
-                const percentage = maxVotes > 0 ? (candidate.votes / maxVotes) * 100 : 0;
-                
-                rankingItem.innerHTML = `
-                    <div class="rank-badge ${badgeClass}">${index + 1}</div>
-                    <img src="${candidate.photo}" alt="${candidate.name}" class="candidate-photo">
-                    <div class="ranking-info">
-                        <div class="ranking-name">${candidate.name}</div>
-                        <div class="ranking-department">${candidate.department}</div>
-                        <div class="progress-bar">
-                            <div class="progress-fill" style="width: ${percentage}%"></div>
-                        </div>
-                    </div>
-                    <div class="ranking-votes">${candidate.votes} คะแนน</div>
-                `;
-                
-                rankingList.appendChild(rankingItem);
+            })
+            .catch(error => {
+                console.error('Error loading report:', error);
+                document.getElementById('ranking-list').innerHTML = '<div class="status-message status-error">เกิดข้อผิดพลาดในการโหลดรายงานผล</div>';
             });
         }
 
@@ -891,6 +1192,7 @@
             document.getElementById('vote-section').classList.add('hidden');
             document.getElementById('confirmation-section').classList.add('hidden');
             document.getElementById('report-section').classList.add('hidden');
+            document.getElementById('admin-section').classList.add('hidden');
             document.getElementById('status-message').classList.add('hidden');
             
             // รีเซ็ตฟอร์ม
@@ -900,6 +1202,7 @@
             
             // รีเซ็ตปุ่ม
             document.getElementById('submit-vote-btn').disabled = false;
+            document.getElementById('verify-btn').disabled = true;
             
             // ล้างการเลือกผู้สมัคร
             document.querySelectorAll('.candidate-card').forEach(card => {
@@ -928,31 +1231,24 @@
             }
         }
 
-        // ฟังก์ชันสำหรับการเชื่อมต่อกับ Firebase (สำหรับอนาคต)
-        function initializeFirebase() {
-            // Firebase configuration
-            const firebaseConfig = {
-                apiKey: "YOUR_API_KEY",
-                authDomain: "YOUR_PROJECT.firebaseapp.com",
-                databaseURL: "https://YOUR_PROJECT.firebasedatabase.app",
-                projectId: "YOUR_PROJECT_ID",
-                storageBucket: "YOUR_PROJECT.appspot.com",
-                messagingSenderId: "YOUR_SENDER_ID",
-                appId: "YOUR_APP_ID"
-            };
-
-            // Initialize Firebase (เมื่อพร้อมใช้งาน)
-            // firebase.initializeApp(firebaseConfig);
-            // const database = firebase.database();
+        // แสดงข้อความสถานะในหน้าผู้ดูแลระบบ
+        function showAdminStatus(message, type) {
+            const adminMessage = document.getElementById('admin-message');
+            adminMessage.textContent = message;
+            adminMessage.className = `status-message status-${type}`;
+            adminMessage.classList.remove('hidden');
             
-            console.log("Firebase is ready to be initialized when needed");
+            setTimeout(() => {
+                adminMessage.classList.add('hidden');
+            }, 5000);
         }
 
         // โหลดข้อมูลเมื่อเริ่มต้นแอป
         window.onload = function() {
-            initializeFirebase();
             // โหลดข้อมูลรายงานผลเริ่มต้น
             loadReport();
+            // แสดงข้อมูลผู้สมัครในหน้าผู้ดูแลระบบ
+            showCandidatesPreview();
         };
     </script>
 </body>
