@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ระบบเลือกตั้งออนไลน์</title>
+    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-database-compat.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.2);
+            width: 100%;
+            max-width: 500px;
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #2c3e50, #4a6491);
+            color: white;
+            padding: 30px 20px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 28px;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            opacity: 0.9;
+        }
+
+        .content {
+            padding: 30px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #2c3e50;
+        }
+
+        input, select {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid #e1e8ed;
+            border-radius: 10px;
+            font-size: 16px;
+            transition: all 0.3s;
+        }
+
+        input:focus, select:focus {
+            border-color: #3498db;
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.2);
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #3498db, #2980b9);
+            color: white;
+            border: none;
+            padding: 15px;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            width: 100%;
+            transition: all 0.3s;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 7px 14px rgba(52, 152, 219, 0.3);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .btn-success {
+            background: linear-gradient(135deg, #27ae60, #219653);
+        }
+
+        .btn-danger {
+            background: linear-gradient(135deg, #e74c3c, #c0392b);
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .candidate-card {
+            background: #f8f9fa;
+            border: 2px solid #e9ecef;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 15px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .candidate-card:hover {
+            border-color: #3498db;
+            transform: translateY(-2px);
+        }
+
+        .candidate-card.selected {
+            border-color: #27ae60;
+            background: #d5f4e6;
+        }
+
+        .candidate-name {
+            font-size: 18px;
+            font-weight: 600;
+            color: #2c3e50;
+        }
+
+        .candidate-position {
+            color: #7f8c8d;
+            margin-top: 5px;
+        }
+
+        .status-message {
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            text-align: center;
+            font-weight: 600;
+        }
+
+        .status-success {
+            background: #d5f4e6;
+            color: #27ae60;
+            border: 1px solid #27ae60;
+        }
+
+        .status-error {
+            background: #fadbd8;
+            color: #e74c3c;
+            border: 1px solid #e74c3c;
+        }
+
+        .status-info {
+            background: #d6eaf8;
+            color: #3498db;
+            border: 1px solid #3498db;
+        }
+
+        .vote-count {
+            text-align: center;
+            font-size: 14px;
+            color: #7f8c8d;
+            margin-top: 5px;
+        }
+
+        .logout-btn {
+            background: transparent;
+            border: none;
+            color: #7f8c8d;
+            cursor: pointer;
+            text-decoration: underline;
+            margin-top: 20px;
+            display: block;
+            text-align: center;
+            width: 100%;
+        }
+
+        .step-indicator {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 30px;
+            position: relative;
+        }
+
+        .step-indicator::before {
+            content: '';
+            position: absolute;
+            top: 15px;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: #e1e8ed;
+            z-index: 1;
+        }
+
+        .step {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            background: #e1e8ed;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            position: relative;
+            z-index: 2;
+        }
+
+        .step.active {
+            background: #3498db;
+            color: white;
+        }
+
+        .step.completed {
+            background: #27ae60;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>ระบบเลือกตั้งออนไลน์</h1>
+            <p>บริษัท ตัวอย่าง จำกัด</p>
+        </div>
+
+        <div class="content">
+            <!-- ขั้นตอนที่ 1: ตรวจสอบสิทธิ์ -->
+            <div id="auth-section">
+                <div class="step-indicator">
+                    <div class="step active">1</div>
+                    <div class="step">2</div>
+                    <div class="step">3</div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="employeeId">รหัสพนักงาน</label>
+                    <input type="text" id="employeeId" placeholder="กรอกรหัสพนักงาน">
+                </div>
+                
+                <div class="form-group">
+                    <label for="fullName">ชื่อ-สกุล</label>
+                    <input type="text" id="fullName" placeholder="กรอกชื่อ-สกุล">
+                </div>
+                
+                <div class="form-group">
+                    <label for="department">แผนก</label>
+                    <select id="department">
+                        <option value="">เลือกแผนก</option>
+                        <option value="IT">แผนกเทคโนโลยีสารสนเทศ</option>
+                        <option value="HR">แผนกทรัพยากรบุคคล</option>
+                        <option value="Finance">แผนกการเงิน</option>
+                        <option value="Marketing">แผนกการตลาด</option>
+                        <option value="Operations">แผนกปฏิบัติการ</option>
+                    </select>
+                </div>
+                
+                <button class="btn" onclick="verifyEmployee()">ตรวจสอบสิทธิ์</button>
+            </div>
+
+            <!-- ขั้นตอนที่ 2: เลือกผู้สมัคร -->
+            <div id="vote-section" class="hidden">
+                <div class="step-indicator">
+                    <div class="step completed">1</div>
+                    <div class="step active">2</div>
+                    <div class="step">3</div>
+                </div>
+                
+                <h2 style="text-align: center; margin-bottom: 20px;">เลือกตั้งประธานกรรมการพนักงาน</h2>
+                
+                <div id="candidates-list">
+                    <!-- ผู้สมัครจะถูกโหลดจาก Firebase -->
+                </div>
+                
+                <div id="vote-message" class="status-message hidden"></div>
+                
+                <button class="btn btn-success" onclick="submitVote()" id="submit-vote-btn">ยืนยันการเลือกตั้ง</button>
+                <button class="logout-btn" onclick="logout()">ออกจากระบบ</button>
+            </div>
+
+            <!-- ขั้นตอนที่ 3: ยืนยันการลงคะแนน -->
+            <div id="confirmation-section" class="hidden">
+                <div class="step-indicator">
+                    <div class="step completed">1</div>
+                    <div class="step completed">2</div>
+                    <div class="step active">3</div>
+                </div>
+                
+                <div class="status-message status-success">
+                    <h3>ขอบคุณสำหรับการลงคะแนน!</h3>
+                    <p>การลงคะแนนเสียงของคุณได้รับการบันทึกเรียบร้อยแล้ว</p>
+                </div>
+                
+                <div style="text-align: center; margin-top: 20px;">
+                    <p>คุณได้ลงคะแนนให้:</p>
+                    <h3 id="selected-candidate-name" style="margin: 10px 0;"></h3>
+                    <p>เวลาในการลงคะแนน: <span id="vote-time"></span></p>
+                </div>
+                
+                <button class="logout-btn" onclick="logout()">ออกจากระบบ</button>
+            </div>
+
+            <!-- ข้อความสถานะ -->
+            <div id="status-message" class="status-message hidden"></div>
+        </div>
+    </div>
+
+    <script>
+        // Firebase configuration
+        const firebaseConfig = {
+            apiKey: "YOUR_API_KEY",
+            authDomain: "YOUR_PROJECT.firebaseapp.com",
+            databaseURL: "https://YOUR_PROJECT.firebasedatabase.app",
+            projectId: "YOUR_PROJECT_ID",
+            storageBucket: "YOUR_PROJECT.appspot.com",
+            messagingSenderId: "YOUR_SENDER_ID",
+            appId: "YOUR_APP_ID"
+        };
+
+        // Initialize Firebase
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+
+        // ข้อมูลผู้มีสิทธิ์เลือกตั้ง (ในระบบจริงควรเก็บใน Firebase)
+        const eligibleEmployees = {
+            "EMP001": { name: "สมชาย ใจดี", department: "IT" },
+            "EMP002": { name: "สุนิสา เก่งดี", department: "HR" },
+            "EMP003": { name: "ประยุทธ์ ทำงาน", department: "Finance" },
+            "EMP004": { name: "วรรณา สวยงาม", department: "Marketing" },
+            "EMP005": { name: "ธนวัฒน์ เร็วแรง", department: "Operations" }
+        };
+
+        // ตัวแปรเก็บสถานะ
+        let currentEmployee = null;
+        let selectedCandidate = null;
+
+        // ฟังก์ชันตรวจสอบสิทธิ์พนักงาน
+        function verifyEmployee() {
+            const employeeId = document.getElementById('employeeId').value.trim();
+            const fullName = document.getElementById('fullName').value.trim();
+            const department = document.getElementById('department').value;
+
+            if (!employeeId || !fullName || !department) {
+                showStatus('กรุณากรอกข้อมูลให้ครบถ้วน', 'error');
+                return;
+            }
+
+            // ตรวจสอบว่าพนักงานมีอยู่ในระบบและข้อมูลตรงกัน
+            if (eligibleEmployees[employeeId] && 
+                eligibleEmployees[employeeId].name === fullName && 
+                eligibleEmployees[employeeId].department === department) {
+                
+                // ตรวจสอบว่าลงคะแนนไปแล้วหรือยัง
+                checkVoteStatus(employeeId, fullName, department);
+            } else {
+                showStatus('ข้อมูลไม่ถูกต้องหรือไม่มีสิทธิ์เลือกตั้ง', 'error');
+            }
+        }
+
+        // ตรวจสอบสถานะการลงคะแนน
+        function checkVoteStatus(employeeId, fullName, department) {
+            const votesRef = database.ref('votes/' + employeeId);
+            
+            votesRef.once('value')
+                .then(snapshot => {
+                    if (snapshot.exists()) {
+                        showStatus('คุณได้ลงคะแนนไปแล้ว', 'error');
+                    } else {
+                        // บันทึกข้อมูลพนักงานและแสดงหน้าลงคะแนน
+                        currentEmployee = {
+                            id: employeeId,
+                            name: fullName,
+                            department: department
+                        };
+                        
+                        showVoteSection();
+                        loadCandidates();
+                    }
+                })
+                .catch(error => {
+                    console.error('Error checking vote status:', error);
+                    showStatus('เกิดข้อผิดพลาดในการตรวจสอบสิทธิ์', 'error');
+                });
+        }
+
+        // โหลดข้อมูลผู้สมัคร
+        function loadCandidates() {
+            const candidatesRef = database.ref('candidates');
+            
+            candidatesRef.once('value')
+                .then(snapshot => {
+                    const candidates = snapshot.val();
+                    const candidatesList = document.getElementById('candidates-list');
+                    candidatesList.innerHTML = '';
+                    
+                    if (candidates) {
+                        Object.keys(candidates).forEach(key => {
+                            const candidate = candidates[key];
+                            const candidateCard = document.createElement('div');
+                            candidateCard.className = 'candidate-card';
+                            candidateCard.onclick = () => selectCandidate(key, candidateCard);
+                            
+                            candidateCard.innerHTML = `
+                                <div class="candidate-name">${candidate.name}</div>
+                                <div class="candidate-position">${candidate.position}</div>
+                                <div class="vote-count">คะแนนปัจจุบัน: <span id="votes-${key}">${candidate.votes || 0}</span></div>
+                            `;
+                            
+                            candidatesList.appendChild(candidateCard);
+                        });
+                        
+                        // เริ่มฟังการเปลี่ยนแปลงจำนวนคะแนนแบบ real-time
+                        startVoteListener();
+                    } else {
+                        // ถ้ายังไม่มีข้อมูลผู้สมัคร ให้สร้างข้อมูลเริ่มต้น
+                        initializeCandidates();
+                        loadCandidates(); // โหลดใหม่หลังจากสร้างข้อมูล
+                    }
+                })
+                .catch(error => {
+                    console.error('Error loading candidates:', error);
+                    showStatus('เกิดข้อผิดพลาดในการโหลดข้อมูลผู้สมัคร', 'error');
+                });
+        }
+
+        // เริ่มต้นข้อมูลผู้สมัคร (ใช้ครั้งแรกเท่านั้น)
+        function initializeCandidates() {
+            const candidatesRef = database.ref('candidates');
+            
+            const defaultCandidates = {
+                "C001": { name: "นางสาวกนกวรรณ ใจดี", position: "ประธานกรรมการ", votes: 0 },
+                "C002": { name: "นายสมชาย ทำงาน", position: "ประธานกรรมการ", votes: 0 },
+                "C003": { name: "นางสาวสุภาพร เก่งดี", position: "ประธานกรรมการ", votes: 0 }
+            };
+            
+            candidatesRef.set(defaultCandidates)
+                .then(() => console.log('Initialized candidates'))
+                .catch(error => console.error('Error initializing candidates:', error));
+        }
+
+        // ฟังก์ชันฟังการเปลี่ยนแปลงจำนวนคะแนนแบบ real-time
+        function startVoteListener() {
+            const candidatesRef = database.ref('candidates');
+            
+            candidatesRef.on('value', snapshot => {
+                const candidates = snapshot.val();
+                
+                if (candidates) {
+                    Object.keys(candidates).forEach(key => {
+                        const voteCountElement = document.getElementById(`votes-${key}`);
+                        if (voteCountElement) {
+                            voteCountElement.textContent = candidates[key].votes || 0;
+                        }
+                    });
+                }
+            });
+        }
+
+        // เลือกผู้สมัคร
+        function selectCandidate(candidateId, element) {
+            // ล้างการเลือกเดิม
+            document.querySelectorAll('.candidate-card').forEach(card => {
+                card.classList.remove('selected');
+            });
+            
+            // เลือกผู้สมัครใหม่
+            element.classList.add('selected');
+            selectedCandidate = candidateId;
+            
+            // แสดงข้อความยืนยัน
+            const voteMessage = document.getElementById('vote-message');
+            voteMessage.textContent = `คุณเลือก: ${element.querySelector('.candidate-name').textContent}`;
+            voteMessage.className = 'status-message status-info';
+            voteMessage.classList.remove('hidden');
+        }
+
+        // ส่งการลงคะแนน
+        function submitVote() {
+            if (!selectedCandidate) {
+                showStatus('กรุณาเลือกผู้สมัครก่อน', 'error', 'vote-message');
+                return;
+            }
+            
+            if (!currentEmployee) {
+                showStatus('เกิดข้อผิดพลาด โปรดเข้าสู่ระบบใหม่', 'error', 'vote-message');
+                return;
+            }
+            
+            // ป้องกันการกดปุ่มซ้ำ
+            document.getElementById('submit-vote-btn').disabled = true;
+            
+            // บันทึกการลงคะแนน
+            const voteData = {
+                employeeId: currentEmployee.id,
+                employeeName: currentEmployee.name,
+                department: currentEmployee.department,
+                candidateId: selectedCandidate,
+                timestamp: new Date().toISOString(),
+                ipAddress: "บันทึกในระบบจริง" // ในระบบจริงควรบันทึก IP Address
+            };
+            
+            // ใช้ Transaction เพื่อป้องกันการลงคะแนนซ้ำและเพิ่มคะแนนอย่างปลอดภัย
+            const voteRef = database.ref('votes/' + currentEmployee.id);
+            const candidateRef = database.ref('candidates/' + selectedCandidate + '/votes');
+            
+            // ตรวจสอบอีกครั้งว่ายังไม่ได้ลงคะแนน
+            voteRef.once('value')
+                .then(snapshot => {
+                    if (snapshot.exists()) {
+                        showStatus('คุณได้ลงคะแนนไปแล้ว', 'error', 'vote-message');
+                        document.getElementById('submit-vote-btn').disabled = false;
+                        return;
+                    }
+                    
+                    // บันทึกการลงคะแนน
+                    return voteRef.set(voteData)
+                        .then(() => {
+                            // อัพเดทจำนวนคะแนน
+                            return candidateRef.transaction(currentVotes => {
+                                return (currentVotes || 0) + 1;
+                            });
+                        })
+                        .then(() => {
+                            // แสดงหน้ายืนยัน
+                            showConfirmation();
+                        });
+                })
+                .catch(error => {
+                    console.error('Error submitting vote:', error);
+                    showStatus('เกิดข้อผิดพลาดในการลงคะแนน', 'error', 'vote-message');
+                    document.getElementById('submit-vote-btn').disabled = false;
+                });
+        }
+
+        // แสดงหน้าลงคะแนน
+        function showVoteSection() {
+            document.getElementById('auth-section').classList.add('hidden');
+            document.getElementById('vote-section').classList.remove('hidden');
+            document.getElementById('confirmation-section').classList.add('hidden');
+            document.getElementById('status-message').classList.add('hidden');
+        }
+
+        // แสดงหน้ายืนยัน
+        function showConfirmation() {
+            // หาชื่อผู้สมัครที่เลือก
+            const candidatesRef = database.ref('candidates/' + selectedCandidate + '/name');
+            
+            candidatesRef.once('value')
+                .then(snapshot => {
+                    const candidateName = snapshot.val();
+                    document.getElementById('sele
