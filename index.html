@@ -3,9 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>1ระบบเลือกตั้งออนไลน์</title>
+    <title>ระบบเลือกตั้งออนไลน์</title>
     <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-database-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-auth-compat.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <style>
         * {
             margin: 0;
@@ -54,6 +56,13 @@
             min-height: 400px;
         }
 
+        /* เพิ่ม padding-bottom สำหรับมือถือเพื่อไม่ให้เมนูบัง */
+        @media (max-width: 767px) {
+            .content {
+                padding-bottom: 120px;
+            }
+        }
+
         .form-group {
             margin-bottom: 20px;
         }
@@ -91,6 +100,7 @@
             cursor: pointer;
             width: 100%;
             transition: all 0.3s;
+            margin-bottom: 10px;
         }
 
         .btn:hover {
@@ -135,6 +145,14 @@
         .candidate-card.selected {
             border-color: #27ae60;
             background: #d5f4e6;
+        }
+
+        .candidate-card.large {
+            margin-bottom: 20px;
+        }
+
+        .candidate-card.hidden {
+            display: none;
         }
 
         .candidate-photo-container {
@@ -347,22 +365,31 @@
             color: #2c3e50;
         }
 
-        .total-votes {
+        /* Stats Grid สำหรับรายงานผล */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .stat-card {
             background: linear-gradient(135deg, #3498db, #2980b9);
             color: white;
             padding: 15px;
             border-radius: 10px;
             text-align: center;
-            margin-bottom: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
         }
 
-        .total-votes h3 {
-            font-size: 18px;
+        .stat-card h3 {
+            font-size: 14px;
             margin-bottom: 5px;
+            opacity: 0.9;
         }
 
-        .total-votes .count {
-            font-size: 32px;
+        .stat-card .count {
+            font-size: 24px;
             font-weight: bold;
         }
 
@@ -378,6 +405,7 @@
             border-radius: 10px;
             margin-bottom: 10px;
             transition: all 0.3s;
+            cursor: pointer;
         }
 
         .ranking-item:hover {
@@ -463,6 +491,52 @@
             transition: width 0.5s ease;
         }
 
+        /* Modal สำหรับรายละเอียดผู้สมัคร */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1001;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+        }
+
+        .modal-content {
+            background-color: white;
+            margin: 5% auto;
+            padding: 20px;
+            border-radius: 10px;
+            width: 90%;
+            max-width: 500px;
+            position: relative;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        .close {
+            position: absolute;
+            right: 15px;
+            top: 10px;
+            color: #aaa;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .close:hover {
+            color: #000;
+        }
+
+        .modal-candidate-photo {
+            width: 100%;
+            height: 200px;
+            object-fit: cover;
+            border-radius: 10px;
+            margin-bottom: 15px;
+        }
+
         /* Responsive */
         @media (min-width: 768px) {
             .container {
@@ -525,6 +599,16 @@
 
         .candidate-data-item:last-child {
             border-bottom: none;
+        }
+
+        /* Selected View */
+        #selected-candidate-view {
+            text-align: center;
+        }
+
+        #selected-candidate-view .candidate-card {
+            margin: 0 auto 20px;
+            max-width: 300px;
         }
     </style>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -589,10 +673,13 @@
                 <div id="candidates-list" class="candidates-grid">
                     <!-- ผู้สมัครจะถูกโหลดจาก Firebase -->
                 </div>
+
+                <div id="selected-vote-message" class="status-message status-info hidden"></div>
                 
                 <div id="vote-message" class="status-message hidden"></div>
                 
                 <button class="btn btn-success" onclick="submitVote()" id="submit-vote-btn">ยืนยันการเลือกตั้ง</button>
+                <button class="btn" onclick="changeSelection()" id="change-selection-btn" class="hidden">เปลี่ยนการเลือก</button>
                 <button class="logout-btn" onclick="logout()">ออกจากระบบ</button>
             </div>
 
@@ -622,10 +709,8 @@
             <div id="report-section" class="hidden">
                 <h2 class="report-title">รายงานผลการเลือกตั้ง</h2>
                 
-                <div class="total-votes">
-                    <h3>จำนวนผู้ลงคะแนนทั้งหมด</h3>
-                    <div class="count" id="total-votes-count">0</div>
-                    <p>คน</p>
+                <div class="stats-grid" id="stats-grid">
+                    <!-- สถิติจะถูกสร้างโดย JavaScript -->
                 </div>
                 
                 <div class="ranking-list" id="ranking-list">
@@ -658,6 +743,7 @@
 
             <!-- ข้อความสถานะ -->
             <div id="status-message" class="status-message hidden"></div>
+            
         </div>
 
         <!-- เมนูสำหรับมือถือ -->
@@ -674,6 +760,15 @@
                 <i class="fas fa-cog"></i>
                 <span>ผู้ดูแล</span>
             </button>
+        </div>
+        
+    </div>
+
+    <!-- Modal สำหรับรายละเอียดผู้สมัคร -->
+    <div id="candidate-modal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal()">&times;</span>
+            <div id="modal-body"></div>
         </div>
     </div>
 
@@ -693,11 +788,16 @@
         // Initialize Firebase
         firebase.initializeApp(firebaseConfig);
         const database = firebase.database();
+        const auth = firebase.auth();
 
         // ตัวแปรเก็บสถานะ
         let currentEmployee = null;
         let selectedCandidate = null;
         let employeeData = {};
+        let isAdmin = false;
+
+        // Admin emails (hardcoded for prototype - ใน production ใช้ Cloud Function check)
+        const adminEmails = ['admin@example.com', 'superadmin@company.com']; // แก้ไขตาม email จริง
 
         // ข้อมูลผู้สมัครจากชีตของคุณ
         const candidateData = [
@@ -714,8 +814,56 @@
             { id: "novote", number: "ไม่ประสงค์ลงคะแนน", name: "ไม่ประสงค์ลงคะแนน", party: "ไม่ประสงค์ลงคะแนน", photo: "https://cmfrozen-387fd.web.app/vote/images/voteno.jpeg", votes: 0 }
         ];
 
+        // ฟังก์ชันแสดง SweetAlert สำหรับ Admin Login
+        async function showAdminLogin() {
+            const { value: formValues } = await Swal.fire({
+                title: 'เข้าสู่ระบบผู้ดูแล',
+                html: `
+                    <div class="form-group">
+                        <label for="admin-email">อีเมล</label>
+                        <input type="email" id="admin-email" class="swal2-input" placeholder="admin@example.com">
+                    </div>
+                    <div class="form-group">
+                        <label for="admin-password">รหัสผ่าน</label>
+                        <input type="password" id="admin-password" class="swal2-input" placeholder="กรอกรหัสผ่าน">
+                    </div>
+                `,
+                focusConfirm: false,
+                showCancelButton: true,
+                confirmButtonText: 'เข้าสู่ระบบ',
+                cancelButtonText: 'ยกเลิก',
+                preConfirm: () => {
+                    const email = document.getElementById('admin-email').value;
+                    const password = document.getElementById('admin-password').value;
+                    if (!email || !password) {
+                        Swal.showValidationMessage('กรุณากรอกอีเมลและรหัสผ่าน');
+                        return false;
+                    }
+                    return { email, password };
+                }
+            });
+
+            if (formValues) {
+                try {
+                    await auth.signInWithEmailAndPassword(formValues.email, formValues.password);
+                    // ตรวจสอบว่าเป็น admin หรือไม่
+                    if (adminEmails.includes(formValues.email)) {
+                        isAdmin = true;
+                        Swal.fire('เข้าสู่ระบบสำเร็จ!', 'ยินดีต้อนรับผู้ดูแลระบบ', 'success');
+                        // โหลด admin content
+                        showCandidatesPreview();
+                    } else {
+                        Swal.fire('ไม่ได้รับอนุญาต', 'อีเมลนี้ไม่ใช่ผู้ดูแลระบบ', 'error');
+                        auth.signOut();
+                    }
+                } catch (error) {
+                    Swal.fire('เกิดข้อผิดพลาด', error.message, 'error');
+                }
+            }
+        }
+
         // ฟังก์ชันแสดงส่วนต่างๆ ของหน้า
-        function showSection(sectionId) {
+        async function showSection(sectionId) {
             // ซ่อนทุกส่วน
             document.getElementById('auth-section').classList.add('hidden');
             document.getElementById('vote-section').classList.add('hidden');
@@ -723,16 +871,29 @@
             document.getElementById('report-section').classList.add('hidden');
             document.getElementById('admin-section').classList.add('hidden');
             
+            // สำหรับ admin section: ตรวจสอบ login
+            if (sectionId === 'admin-section') {
+                const user = auth.currentUser;
+                if (!user || !isAdmin) {
+                    await showAdminLogin();
+                    if (!isAdmin) {
+                        // ถ้า login ไม่สำเร็จ กลับไป auth-section
+                        showSection('auth-section');
+                        return;
+                    }
+                }
+            }
+            
+            // สำหรับ report: เปิดให้ทุกคน (anonymous OK)
+            if (sectionId === 'report-section') {
+                loadReport();
+            }
+            
             // แสดงส่วนที่เลือก
             document.getElementById(sectionId).classList.remove('hidden');
             
             // อัพเดทเมนู
             updateNavButtons(sectionId);
-            
-            // ถ้าเป็นหน้ารายงานผล ให้โหลดข้อมูลใหม่
-            if (sectionId === 'report-section') {
-                loadReport();
-            }
             
             // ถ้าเป็นหน้าผู้ดูแลระบบ ให้แสดงข้อมูลผู้สมัคร
             if (sectionId === 'admin-section') {
@@ -774,6 +935,10 @@
 
         // อัพโหลดข้อมูลผู้สมัครไปยัง Firebase
         function uploadCandidates() {
+            if (!isAdmin) {
+                showAdminStatus('กรุณาเข้าสู่ระบบผู้ดูแลก่อน', 'error');
+                return;
+            }
             const candidatesRef = database.ref('candidates');
             
             // แปลงข้อมูลผู้สมัครเป็น object
@@ -800,6 +965,10 @@
 
         // รีเซ็ตคะแนนทั้งหมด
         function resetVotes() {
+            if (!isAdmin) {
+                showAdminStatus('กรุณาเข้าสู่ระบบผู้ดูแลก่อน', 'error');
+                return;
+            }
             if (!confirm('คุณแน่ใจหรือไม่ที่จะรีเซ็ตคะแนนทั้งหมด? การกระทำนี้ไม่สามารถย้อนกลับได้!')) {
                 return;
             }
@@ -832,6 +1001,18 @@
                     console.error('Error resetting votes:', error);
                     showAdminStatus('เกิดข้อผิดพลาดในการรีเซ็ตคะแนน', 'error');
                 });
+        }
+
+        // ฟังก์ชันดึง IP Address
+        async function getClientIP() {
+            try {
+                const response = await fetch('https://api.ipify.org?format=json');
+                const data = await response.json();
+                return data.ip;
+            } catch (error) {
+                console.error('Error fetching IP:', error);
+                return 'unknown';
+            }
         }
 
         // โหลดข้อมูลพนักงานเมื่อกรอกรหัสพนักงาน
@@ -913,11 +1094,13 @@
                     if (snapshot.exists()) {
                         showStatus('คุณได้ลงคะแนนไปแล้ว', 'error');
                     } else {
-                        // บันทึกข้อมูลพนักงานและแสดงหน้าลงคะแนน
+                        // บันทึกข้อมูลพนักงานและแสดงหน้าลงคะแนน (เพิ่ม uid)
+                        const user = auth.currentUser;
                         currentEmployee = {
                             id: employeeId,
                             name: fullName,
-                            department: department
+                            department: department,
+                            uid: user ? user.uid : null
                         };
                         
                         showVoteSection();
@@ -945,7 +1128,7 @@
                             const candidate = candidates[key];
                             const candidateCard = document.createElement('div');
                             candidateCard.className = 'candidate-card';
-                            candidateCard.onclick = () => selectCandidate(key, candidateCard);
+                            candidateCard.onclick = () => selectCandidate(key, candidate, candidateCard);
                             
                             candidateCard.innerHTML = `
                                 <div class="candidate-photo-container">
@@ -972,38 +1155,36 @@
         }
 
         // เลือกผู้สมัคร
-        function selectCandidate(candidateId, element) {
+        function selectCandidate(candidateId, candidate, element) {
             // ล้างการเลือกเดิม
             document.querySelectorAll('.candidate-card').forEach(card => {
                 card.classList.remove('selected');
+                card.classList.add('hidden');
             });
             
             // เลือกผู้สมัครใหม่
             element.classList.add('selected');
-            selectedCandidate = candidateId;
+            element.classList.remove('hidden');
+            selectedCandidate = { id: candidateId, ...candidate };
             
-            // แสดงข้อความยืนยัน
-            const voteMessage = document.getElementById('vote-message');
-            
-            // โหลดชื่อผู้สมัครจาก Firebase
-            const candidatesRef = database.ref('candidates/' + candidateId + '/name');
-            candidatesRef.once('value')
-                .then(snapshot => {
-                    const candidateName = snapshot.val();
-                    voteMessage.textContent = `คุณเลือก: ${candidateName}`;
-                    voteMessage.className = 'status-message status-info';
-                    voteMessage.classList.remove('hidden');
-                })
-                .catch(error => {
-                    console.error('Error getting candidate name:', error);
-                    voteMessage.textContent = `คุณเลือกผู้สมัคร ${candidateId}`;
-                    voteMessage.className = 'status-message status-info';
-                    voteMessage.classList.remove('hidden');
-                });
+            // แสดงข้อความยืนยันและปุ่มเปลี่ยนการเลือก
+            document.getElementById('selected-vote-message').textContent = `คุณเลือก: ${candidate.name}`;
+            document.getElementById('selected-vote-message').classList.remove('hidden');
+            document.getElementById('change-selection-btn').classList.remove('hidden');
         }
 
-        // ส่งการลงคะแนน
-        function submitVote() {
+        // เปลี่ยนการเลือก
+        function changeSelection() {
+            document.querySelectorAll('.candidate-card').forEach(card => {
+                card.classList.remove('hidden', 'selected');
+            });
+            document.getElementById('selected-vote-message').classList.add('hidden');
+            document.getElementById('change-selection-btn').classList.add('hidden');
+            selectedCandidate = null;
+        }
+
+        // ส่งการลงคะแนน (async เพื่อรอ IP)
+        async function submitVote() {
             if (!selectedCandidate) {
                 showStatus('กรุณาเลือกผู้สมัครก่อน', 'error', 'vote-message');
                 return;
@@ -1013,27 +1194,43 @@
                 showStatus('เกิดข้อผิดพลาด โปรดเข้าสู่ระบบใหม่', 'error', 'vote-message');
                 return;
             }
-            
-            // ป้องกันการกดปุ่มซ้ำ
-            document.getElementById('submit-vote-btn').disabled = true;
-            
-            // บันทึกการลงคะแนน
-            const voteData = {
-                employeeId: currentEmployee.id,
-                employeeName: currentEmployee.name,
-                department: currentEmployee.department,
-                candidateId: selectedCandidate,
-                timestamp: new Date().toISOString(),
-                ipAddress: "บันทึกในระบบจริง"
-            };
-            
-            // ใช้ Transaction เพื่อป้องกันการลงคะแนนซ้ำและเพิ่มคะแนนอย่างปลอดภัย
-            const voteRef = database.ref('votes/' + currentEmployee.id);
-            const candidateRef = database.ref('candidates/' + selectedCandidate + '/votes');
-            
-            // ตรวจสอบอีกครั้งว่ายังไม่ได้ลงคะแนน
-            voteRef.once('value')
-                .then(snapshot => {
+
+            // แสดง SweetAlert สำหรับยืนยัน
+            const result = await Swal.fire({
+                title: 'ยืนยันการเลือก',
+                text: `คุณยืนยันที่จะเลือก ${selectedCandidate.number} ${selectedCandidate.name} (${selectedCandidate.party}) ใช่ไหม?`,
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonColor: '#27ae60',
+                cancelButtonColor: '#d33',
+                confirmButtonText: 'ใช่, ยืนยัน',
+                cancelButtonText: 'ยกเลิก'
+            });
+
+            if (result.isConfirmed) {
+                // ป้องกันการกดปุ่มซ้ำ
+                document.getElementById('submit-vote-btn').disabled = true;
+                
+                try {
+                    const ipAddress = await getClientIP();
+                    
+                    // บันทึกการลงคะแนน (timestamp เป็น ms)
+                    const voteData = {
+                        employeeId: currentEmployee.id,
+                        employeeName: currentEmployee.name,
+                        department: currentEmployee.department,
+                        candidateId: selectedCandidate.id,
+                        uid: currentEmployee.uid,
+                        timestamp: Date.now(),
+                        ipAddress: ipAddress
+                    };
+                    
+                    // ใช้ Transaction เพื่อป้องกันการลงคะแนนซ้ำและเพิ่มคะแนนอย่างปลอดภัย
+                    const voteRef = database.ref('votes/' + currentEmployee.id);
+                    const candidateRef = database.ref('candidates/' + selectedCandidate.id + '/votes');
+                    
+                    // ตรวจสอบอีกครั้งว่ายังไม่ได้ลงคะแนน
+                    const snapshot = await voteRef.once('value');
                     if (snapshot.exists()) {
                         showStatus('คุณได้ลงคะแนนไปแล้ว', 'error', 'vote-message');
                         document.getElementById('submit-vote-btn').disabled = false;
@@ -1041,23 +1238,21 @@
                     }
                     
                     // บันทึกการลงคะแนน
-                    return voteRef.set(voteData)
-                        .then(() => {
-                            // อัพเดทจำนวนคะแนน
-                            return candidateRef.transaction(currentVotes => {
-                                return (currentVotes || 0) + 1;
-                            });
-                        })
-                        .then(() => {
-                            // แสดงหน้ายืนยัน
-                            showConfirmation();
-                        });
-                })
-                .catch(error => {
+                    await voteRef.set(voteData);
+                    
+                    // อัพเดทจำนวนคะแนน
+                    await candidateRef.transaction(currentVotes => {
+                        return (currentVotes || 0) + 1;
+                    });
+                    
+                    // แสดงหน้ายืนยัน
+                    showConfirmation();
+                } catch (error) {
                     console.error('Error submitting vote:', error);
-                    showStatus('เกิดข้อผิดพลาดในการลงคะแนน', 'error', 'vote-message');
+                    showStatus('เกิดข้อผิดพลาดในการลงคะแนน: ' + error.message, 'error', 'vote-message');
                     document.getElementById('submit-vote-btn').disabled = false;
-                });
+                }
+            }
         }
 
         // แสดงหน้าลงคะแนน
@@ -1074,62 +1269,55 @@
 
         // แสดงหน้ายืนยัน
         function showConfirmation() {
-            // หาชื่อผู้สมัครที่เลือก
-            const candidatesRef = database.ref('candidates/' + selectedCandidate + '/name');
+            document.getElementById('selected-candidate-name').textContent = selectedCandidate.name;
+            document.getElementById('vote-time').textContent = new Date().toLocaleString('th-TH');
             
-            candidatesRef.once('value')
-                .then(snapshot => {
-                    const candidateName = snapshot.val();
-                    document.getElementById('selected-candidate-name').textContent = candidateName;
-                    document.getElementById('vote-time').textContent = new Date().toLocaleString('th-TH');
-                    
-                    document.getElementById('vote-section').classList.add('hidden');
-                    document.getElementById('confirmation-section').classList.remove('hidden');
-                    
-                    updateNavButtons('confirmation-section');
-                })
-                .catch(error => {
-                    console.error('Error getting candidate name:', error);
-                    document.getElementById('selected-candidate-name').textContent = 'ไม่ทราบชื่อ';
-                    document.getElementById('vote-time').textContent = new Date().toLocaleString('th-TH');
-                    
-                    document.getElementById('vote-section').classList.add('hidden');
-                    document.getElementById('confirmation-section').classList.remove('hidden');
-                    
-                    updateNavButtons('confirmation-section');
-                });
+            document.getElementById('vote-section').classList.add('hidden');
+            document.getElementById('confirmation-section').classList.remove('hidden');
+            
+            updateNavButtons('confirmation-section');
         }
 
-        // โหลดหน้ารายงานผล
+        // โหลดหน้ารายงานผล (เปิดให้ทุกคน)
         function loadReport() {
-            // โหลดข้อมูลผู้สมัครและคะแนน
             const candidatesRef = database.ref('candidates');
             const votesRef = database.ref('votes');
+            const employeesRef = database.ref('employees');
             
             Promise.all([
                 candidatesRef.once('value'),
-                votesRef.once('value')
+                votesRef.once('value'),
+                employeesRef.once('value')
             ])
-            .then(([candidatesSnapshot, votesSnapshot]) => {
+            .then(([candidatesSnapshot, votesSnapshot, employeesSnapshot]) => {
                 const candidates = candidatesSnapshot.val();
                 const votes = votesSnapshot.val();
+                const employees = employeesSnapshot.val();
                 
-                // คำนวณจำนวนผู้ลงคะแนนทั้งหมด
-                const totalVotes = votes ? Object.keys(votes).length : 0;
-                document.getElementById('total-votes-count').textContent = totalVotes;
+                // คำนวณจำนวนผู้มีสิทธิ์
+                const eligibleEmployees = employees ? Object.values(employees).filter(e => e.status === 'ปฏิบัติงาน').length : 0;
+                const totalVoted = votes ? Object.keys(votes).length : 0;
+                const totalNotVoted = eligibleEmployees - totalVoted;
+                const spoiledVotes = candidates && candidates.novote ? candidates.novote.votes || 0 : 0;
                 
-                // สร้างรายการเรียงลำดับคะแนน
+                // อัพเดทสถิติ
+                document.getElementById('total-eligible').textContent = eligibleEmployees;
+                document.getElementById('total-voted').textContent = totalVoted;
+                document.getElementById('total-not-voted').textContent = totalNotVoted;
+                document.getElementById('spoiled-votes').textContent = spoiledVotes;
+                
+                // สร้างรายการเรียงลำดับคะแนน (ไม่รวม novote)
                 const rankingList = document.getElementById('ranking-list');
                 rankingList.innerHTML = '';
                 
                 if (candidates) {
-                    // แปลงข้อมูลผู้สมัครเป็นอาร์เรย์และเรียงลำดับตามคะแนน
-                    const candidatesArray = Object.keys(candidates).map(key => {
-                        return {
+                    // แปลงข้อมูลผู้สมัครเป็นอาร์เรย์ (ไม่รวม novote)
+                    const candidatesArray = Object.keys(candidates)
+                        .filter(key => key !== 'novote')
+                        .map(key => ({
                             id: key,
                             ...candidates[key]
-                        };
-                    });
+                        }));
                     
                     // เรียงลำดับจากคะแนนมากไปน้อย
                     candidatesArray.sort((a, b) => (b.votes || 0) - (a.votes || 0));
@@ -1141,6 +1329,7 @@
                     candidatesArray.forEach((candidate, index) => {
                         const rankingItem = document.createElement('div');
                         rankingItem.className = 'ranking-item';
+                        rankingItem.onclick = () => showCandidateDetail(candidate);
                         
                         // ถ้าเป็นอันดับ 1 และมีคะแนนมากกว่า 0 ให้เพิ่มคลาส winner
                         if (index === 0 && candidate.votes > 0) {
@@ -1179,14 +1368,38 @@
             })
             .catch(error => {
                 console.error('Error loading report:', error);
-                document.getElementById('ranking-list').innerHTML = '<div class="status-message status-error">เกิดข้อผิดพลาดในการโหลดรายงานผล</div>';
+                if (error.code === 'PERMISSION_DENIED') {
+                    document.getElementById('ranking-list').innerHTML = '<div class="status-message status-error">ไม่มีสิทธิ์เข้าถึงรายงานผล</div>';
+                } else {
+                    document.getElementById('ranking-list').innerHTML = '<div class="status-message status-error">เกิดข้อผิดพลาดในการโหลดรายงานผล</div>';
+                }
             });
+        }
+
+        // แสดงรายละเอียดผู้สมัครใน modal
+        function showCandidateDetail(candidate) {
+            const modalBody = document.getElementById('modal-body');
+            modalBody.innerHTML = `
+                <img src="${candidate.photo || 'https://via.placeholder.com/300x200/3498db/FFFFFF?text=No+Image'}" alt="${candidate.name}" class="modal-candidate-photo">
+                <h3>${candidate.number}: ${candidate.name}</h3>
+                <p><strong>พรรค:</strong> ${candidate.party || 'พรรค'}</p>
+                <p><strong>คะแนน:</strong> ${candidate.votes || 0} คะแนน</p>
+            `;
+            document.getElementById('candidate-modal').style.display = 'block';
+        }
+
+        // ปิด modal
+        function closeModal() {
+            document.getElementById('candidate-modal').style.display = 'none';
         }
 
         // ออกจากระบบ
         function logout() {
             currentEmployee = null;
             selectedCandidate = null;
+            isAdmin = false;
+            
+            auth.signOut().catch(console.error);
             
             document.getElementById('auth-section').classList.remove('hidden');
             document.getElementById('vote-section').classList.add('hidden');
@@ -1203,14 +1416,16 @@
             // รีเซ็ตปุ่ม
             document.getElementById('submit-vote-btn').disabled = false;
             document.getElementById('verify-btn').disabled = true;
+            document.getElementById('change-selection-btn').classList.add('hidden');
             
             // ล้างการเลือกผู้สมัคร
             document.querySelectorAll('.candidate-card').forEach(card => {
-                card.classList.remove('selected');
+                card.classList.remove('selected', 'hidden');
             });
             
             // ซ่อนข้อความเลือกผู้สมัคร
             document.getElementById('vote-message').classList.add('hidden');
+            document.getElementById('selected-vote-message').classList.add('hidden');
             
             // อัพเดทเมนู
             updateNavButtons('auth-section');
@@ -1243,12 +1458,57 @@
             }, 5000);
         }
 
+        // ปิด modal เมื่อคลิกนอก
+        window.onclick = function(event) {
+            const modal = document.getElementById('candidate-modal');
+            if (event.target === modal) {
+                closeModal();
+            }
+        }
+
+        // Observer สำหรับ auth state changes
+        auth.onAuthStateChanged((user) => {
+            if (user && user.isAnonymous) {
+                console.log('Anonymous user signed in');
+            } else if (user && !user.isAnonymous) {
+                // สำหรับ email login, check admin
+                if (adminEmails.includes(user.email)) {
+                    isAdmin = true;
+                }
+            }
+        });
+
         // โหลดข้อมูลเมื่อเริ่มต้นแอป
-        window.onload = function() {
-            // โหลดข้อมูลรายงานผลเริ่มต้น
-            loadReport();
-            // แสดงข้อมูลผู้สมัครในหน้าผู้ดูแลระบบ
-            showCandidatesPreview();
+        window.onload = async function() {
+            // Sign in anonymously for voting
+            try {
+                await auth.signInAnonymously();
+                console.log('Signed in anonymously');
+            } catch (error) {
+                console.error('Auth error:', error);
+                showStatus('เกิดข้อผิดพลาดในการเชื่อมต่อระบบ', 'error');
+            }
+
+            // สร้าง stats grid
+            const statsGrid = document.getElementById('stats-grid');
+            statsGrid.innerHTML = `
+                <div class="stat-card">
+                    <h3>ผู้มีสิทธิ์ทั้งหมด</h3>
+                    <div class="count" id="total-eligible">0</div>
+                </div>
+                <div class="stat-card">
+                    <h3>ลงคะแนนแล้ว</h3>
+                    <div class="count" id="total-voted">0</div>
+                </div>
+                <div class="stat-card">
+                    <h3>ยังไม่ลงคะแนน</h3>
+                    <div class="count" id="total-not-voted">0</div>
+                </div>
+                <div class="stat-card">
+                    <h3>บัตรเสีย</h3>
+                    <div class="count" id="spoiled-votes">0</div>
+                </div>
+            `;
         };
     </script>
 </body>
